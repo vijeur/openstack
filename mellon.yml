@@ -1,0 +1,103 @@
+---
+- hosts: tarball
+  remote_user: root
+  tasks:
+    - name: test connection compute
+      ping:
+
+    - name: copying zip file extract  with owner and permissions
+      copy:
+        src: /home/stack/Infra_bond_mellanox/fw-ConnectX4Lx-rel-14_25_1020-MCX4421A-ACA_Bx-UEFI-14.18.19-FlexBoot-3.5.701.bin.zip
+        dest: /tmp/fw-ConnectX4Lx-rel-14_25_1020-MCX4421A-ACA_Bx-UEFI-14.18.19-FlexBoot-3.5.701.bin.zip
+        mode: 0777
+      become: yes
+
+    - name: Unarchive a file that is already on the remote machine
+      unarchive:
+        src: /tmp/fw-ConnectX4Lx-rel-14_25_1020-MCX4421A-ACA_Bx-UEFI-14.18.19-FlexBoot-3.5.701.bin.zip
+        dest: /tmp/
+        mode: 0777
+        remote_src: yes
+
+    - name: copying mlxup with owner and permissions
+      copy:
+        src: /home/stack/Infra_bond_mellanox/mlxup 
+        dest: /tmp/mlxup
+        owner: root
+        group: root
+        mode: 0777
+      become: yes
+
+
+    - name: check product version before upgrade
+      shell: mstflint -d 03:00.0 q|grep Product
+      register: pro_1
+      become: yes
+
+    - debug: msg="{{ pro_1.stdout }}"
+
+
+    - name: check ethernet3f1 firmware version before upgrade
+      shell: ethtool -i ens3f0|grep firmware-version
+      register: ethtool3f0_1
+      become: yes
+
+    - debug: msg="{{ ethtool3f0_1.stdout }}"
+
+    - name: check ethernet3f1 firmware version before upgrade
+      shell: ethtool -i ens3f1|grep firmware-version
+      register: ethtool3f1_1
+      become: yes
+
+    - debug: msg="{{ ethtool3f1_1.stdout }}"
+
+
+    - name: run a script avrs_automation without arguments
+      shell: cd /tmp && echo y|sudo ./mlxup -d 0000:03:00.0 -i fw-ConnectX4Lx-rel-14_25_1020-MCX4421A-ACA_Bx-UEFI-14.18.19-FlexBoot-3.5.701.bin
+      become: yes
+
+
+    - name: Reboot immediately after packages removed
+      shell: "sleep 5 && reboot"
+      async: 1
+      poll: 0
+      become: yes
+      register: task_reboot
+
+    - name: Wait for the reboot to complete if there was a change.
+      wait_for_connection:
+        connect_timeout: 20
+        sleep: 5
+        delay: 15
+        timeout: 900
+        become: yes
+
+    - name: get uptime after reboot
+      shell: /usr/bin/uptime | grep -ohe 'up .*' | sed 's/,//g' | awk '{ print $2" "$3 }'
+      changed_when: False
+      register: uptime_after_reboot
+      become: yes
+
+    - debug: msg="{{ uptime_after_reboot.stdout }}"
+
+    - name: check product version aftre upgrade
+      shell: mstflint -d 03:00.0 q|grep Product
+      register: pro_2
+      become: yes
+ 
+    - debug: msg="{{ pro_2.stdout }}"
+ 
+ 
+    - name: check ethernet3f0 firmware version after upgrade
+      shell: ethtool -i ens3f0|grep firmware-version
+      register: ethtool3f0_2
+      become: yes
+ 
+    - debug: msg="{{ ethtool3f0_2.stdout }}"
+ 
+    - name: check ethernet3f1 firmware version after upgrade
+      shell: ethtool -i ens3f1|grep firmware-version
+      register: ethtool3f1_2
+      become: yes
+ 
+    - debug: msg="{{ ethtool3f1_2.stdout }}"
