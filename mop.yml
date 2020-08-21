@@ -1,0 +1,91 @@
+---
+- hosts: undercloud
+  remote_user: root
+  gather_facts: no
+  tasks:
+    - name: test connection compute
+      ping:
+
+    - name: check whether tripleo_iscsi service is enabled
+      shell: source /home/stack/overcloudrc && cinder service-list
+      register: pro_1
+      become: yes
+      ignore_errors: True
+
+    - debug:
+        var: pro_1.stdout_lines
+
+    - name: check tripleo_iscsi volume list
+      shell: source /home/stack/overcloudrc && openstack volume list --long|grep tripleo-hpe3par|awk '{print $2}'
+      register: pro_2
+      become: yes
+      ignore_errors: True
+
+    - debug:
+        var: pro_2.stdout_lines
+
+- hosts: controller
+  remote_user: root
+  gather_facts: no
+  tasks:
+    - name: test connection compute
+      ping:
+
+    - name: check if we already have a backup file
+      stat:
+        path: /var/lib/config-data/puppet-generated/cinder/etc/cinder/test-cinder.bak
+      register: stat
+
+    - name: taking backup of cinder.conf
+      copy:
+        src: /var/lib/config-data/puppet-generated/cinder/etc/cinder/test-cinder
+        remote_src: true
+        dest: /var/lib/config-data/puppet-generated/cinder/etc/cinder/test-cinder.bak
+        owner: root
+        group: root
+        mode: 0622
+      become: yes
+      when: not stat.stat.exists
+
+    - name: replace string example
+      replace:
+        path: /var/lib/config-data/puppet-generated/cinder/etc/cinder/test-cinder
+        regexp: 'tripleo_iscsi,tripleo_hpe3par'
+        replace: "tripleo_hpe3par"
+      become: yes
+
+    - name: check whether if value has been replaced
+      shell: diff /var/lib/config-data/puppet-generated/cinder/etc/cinder/test-cinder{,.bak}
+      register: pro_3
+      become: yes
+      ignore_errors: True
+
+    - debug:
+        var: pro_3.stdout_lines
+
+    - name: remove a section/block from the file
+      lineinfile:
+        dest: /var/lib/config-data/puppet-generated/cinder/etc/cinder/test-cinder
+        regexp: "{{ item }}"
+        state: absent
+      become: yes
+      with_items:
+        - '^\[tripleo_iscsi\]'
+        - '^backend_host='
+        - '^volume_backend_name='
+        - '^volume_driver='
+        - '^iscsi_ip_address='
+        - '^iscsi_helper='
+        - '^volumes_dir='
+        - '^iscsi_protocol='
+
+    - name: check block whether if value has been replaced
+      shell: diff /var/lib/config-data/puppet-generated/cinder/etc/cinder/test-cinder{,.bak}
+      register: pro_4
+      become: yes
+      ignore_errors: True
+
+    - debug:
+        var: pro_4.stdout_lines
+
+        
